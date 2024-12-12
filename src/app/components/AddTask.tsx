@@ -5,32 +5,40 @@ import Modal from "./Modal";
 import { useState, FormEventHandler } from "react";
 import { addTodo } from "../../../api";
 import { useRouter } from "next/navigation";
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
+import { auth } from "../firebase/config";
 
 const AddTask = () => {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState<boolean>(false);
   const [newTaskValue, setNewTaskValue] = useState<string>("");
+  const [newDueDate, setNewDueDate] = useState<string>("");
 
   const handleSubmitNewTodo: FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
 
-    if (!newTaskValue.trim()) {
-      console.error("Task text cannot be empty");
-      return; // Prevent adding empty tasks
+    const user = auth.currentUser;
+    if (!user) {
+      console.error("No user is logged in.");
+      return;
     }
 
-    const userId = "example-user-id"; // Replace this with your user ID logic
+    const userId = user.uid;
+
+    // Convert dueDate string to a timestamp (number)
+    const dueDateTimestamp = new Date(newDueDate).getTime();
+
     const newTask = {
       id: uuidv4(),
-      text: newTaskValue.trim(),
+      title: newTaskValue.trim(),
+      dueDate: dueDateTimestamp, // Ensure it's a number (timestamp)
+      isDone: false,
     };
 
-    console.log("New task being added:", newTask); // Debugging log
-
     try {
-      await addTodo(userId, newTask); // Ensure 'addTodo' accepts these parameters
+      await addTodo(userId, newTask);
       setNewTaskValue("");
+      setNewDueDate("");
       setModalOpen(false);
       router.refresh();
     } catch (error) {
@@ -52,7 +60,13 @@ const AddTask = () => {
               value={newTaskValue}
               onChange={(e) => setNewTaskValue(e.target.value)}
               type="text"
-              placeholder="Type here"
+              placeholder="Task title"
+              className="input input-bordered w-full"
+            />
+            <input
+              value={newDueDate}
+              onChange={(e) => setNewDueDate(e.target.value)}
+              type="date"
               className="input input-bordered w-full"
             />
             <button type="submit" className="btn">Submit</button>

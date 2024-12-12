@@ -14,12 +14,12 @@ import {
 // Get all todos for a user
 export const getAllTodos = async (userId: string): Promise<ITask[]> => {
   try {
-    const tasksCollectionRef = collection(db, "users", userId.toString(), "todos"); // Ensure userId is a string
+    const tasksCollectionRef = collection(db, "users", userId, "todos");
     const snapshot = await getDocs(tasksCollectionRef);
     const todos = snapshot.docs.map((doc) => ({
       id: doc.id,
-      ...doc.data(),
-    })) as ITask[];
+      ...(doc.data() as Omit<ITask, "id">),
+    }));
     return todos;
   } catch (error) {
     console.error("Error fetching tasks:", error);
@@ -27,60 +27,47 @@ export const getAllTodos = async (userId: string): Promise<ITask[]> => {
   }
 };
 
-// Create or fetch a user and add a task
+// Add a new todo for a user
 export const addTodo = async (userId: string, todo: ITask): Promise<ITask> => {
   try {
-    // Reference to the user's document
-    const userDocRef = doc(db, "users", userId.toString());
-
-    // Check if the user document exists
+    const userDocRef = doc(db, "users", userId); // Reference to the user's document
     const userSnapshot = await getDoc(userDocRef);
 
     if (!userSnapshot.exists()) {
-      // If the user doesn't exist, create their document
       await setDoc(userDocRef, { createdAt: new Date().toISOString() });
     }
 
-    // Reference to the 'todos' sub-collection
     const todosCollectionRef = collection(userDocRef, "todos");
+    // Set the document ID to be the same as the task's 'id' field
+    const docRef = doc(todosCollectionRef, todo.id);
+    await setDoc(docRef, todo); // Set the task data
 
-    // Add the task to the 'todos' sub-collection
-    const docRef = await addDoc(todosCollectionRef, { text: todo.text });
-    return { id: docRef.id, text: todo.text };
+    return { ...todo, id: docRef.id }; // Return the task with the Firestore document ID
   } catch (error) {
     console.error("Error adding task:", error);
     throw new Error("Could not add task");
   }
 };
 
-// Edit an existing todo for a user
-export const editTodo = async (userId: string, todo: ITask): Promise<ITask> => {
+// Edit an existing todo (used for both title and isDone toggling)
+export const editTodo = async (
+  userId: string,
+  taskId: string,
+  updates: Partial<ITask>
+): Promise<void> => {
   try {
-    const todoDocRef = doc(
-      db,
-      "users",
-      userId.toString(),
-      "todos",
-      todo.id.toString() // Ensure todo.id is a string
-    );
-    await updateDoc(todoDocRef, { text: todo.text }); // Update only the 'text' field
-    return todo;
+    const todoDocRef = doc(db, "users", userId, "todos", taskId);
+    await updateDoc(todoDocRef, updates); // Only update provided fields
   } catch (error) {
     console.error("Error updating task:", error);
     throw new Error("Could not update task");
   }
 };
 
-// Delete a todo for a user
+// Delete a todo
 export const deleteTodo = async (userId: string, id: string): Promise<void> => {
   try {
-    const todoDocRef = doc(
-      db,
-      "users",
-      userId.toString(),
-      "todos",
-      id.toString() // Ensure id is a string
-    );
+    const todoDocRef = doc(db, "users", userId, "todos", id);
     await deleteDoc(todoDocRef);
   } catch (error) {
     console.error("Error deleting task:", error);
